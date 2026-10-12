@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart AI Doorbell</title>
+<script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+<style>
+body{font-family:system-ui,Arial,sans-serif;background:#101827;color:#f3f6ff;margin:0;padding:25px}
+main{max-width:1050px;margin:auto}h1{margin-bottom:5px}
+.muted{color:#a6b5ca}.layout{display:grid;grid-template-columns:2fr 1fr;gap:18px}
+section{background:#1b293e;padding:18px;border-radius:14px;margin-top:20px}
+.camera{width:100%;border-radius:10px;background:#0b1320}
+.stat{padding:10px;border-bottom:1px solid #33445e}
+.visitors{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}
+.card{background:#243650;border-radius:9px;overflow:hidden}
+.card img{width:100%;display:block}.card p{font-size:12px;padding:8px;margin:0}
+@media(max-width:750px){.layout{grid-template-columns:1fr}}
+</style></head><body><main>
+<h1>Smart AI Doorbell</h1><p class="muted">Raspberry Pi live camera and visitor history</p>
+<div class="layout"><section><h2>Live Camera</h2>
+<img class="camera" src="/video_feed" alt="Live camera feed"></section>
+<section><h2>System Status</h2><div id="status">Connecting...</div></section></div>
+<section><h2>Recent Visitors</h2><div class="visitors" id="visitors">Loading visitor history...</div></section>
+</main><script>
+const visitors=document.getElementById('visitors');
+function addVisitor(item,prepend=false){
+  if(visitors.textContent.includes('Loading visitor history')||visitors.textContent.includes('No visitors'))visitors.textContent='';
+  if([...visitors.children].some(el=>el.dataset.filename===item.filename))return;
+  const card=document.createElement('div');card.className='card';card.dataset.filename=item.filename;
+  const img=document.createElement('img');img.src='/photos/'+encodeURIComponent(item.filename);
+  img.alt='Visitor photo';
+  const p=document.createElement('p');p.textContent=item.timestamp;
+  card.append(img,p);
+  prepend?visitors.prepend(card):visitors.append(card);
+  while(visitors.children.length>10)visitors.lastElementChild.remove();
+}
+fetch('/visitor_history').then(r=>r.json()).then(items=>{
+  visitors.textContent='';
+  if(!items.length)visitors.textContent='No visitors yet.';
+  items.forEach(item=>addVisitor(item));
+}).catch(()=>visitors.textContent='Could not load visitor history.');
+if(typeof io==='function'){
+  const socket=io();
+  socket.on('new_visitor',item=>addVisitor(item,true));
+}
+async function refreshStatus(){
+  try{
+    const r=await fetch('/status');const s=await r.json();
+    const el=document.getElementById('status');el.replaceChildren();
+    for(const [key,value] of Object.entries(s)){
+      const d=document.createElement('div');d.className='stat';
+      d.textContent=key.replaceAll('_',' ').toUpperCase()+': '+(value??'—');
+      el.appendChild(d);
+    }
+  }catch(e){document.getElementById('status').textContent='Disconnected';}
+}
+refreshStatus();setInterval(refreshStatus,500);
+</script></body></html>
