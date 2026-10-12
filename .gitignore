@@ -1,0 +1,13 @@
+faces/*
+!faces/.gitkeep
+photos/*
+!photos/.gitkeep
+*.yml
+*.yaml
+__pycache__/
+*.py[cod]
+.env
+.venv/
+venv/
+.DS_Store
+*.log

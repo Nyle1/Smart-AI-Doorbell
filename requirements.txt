@@ -1,0 +1,4 @@
+# Raspberry Pi OS: install system packages with apt (see README).
+Flask
+Flask-SocketIO
+# gpiozero, picamera2, numpy and cv2 are installed through apt on Raspberry Pi OS.
