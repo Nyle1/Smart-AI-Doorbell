@@ -1,57 +1,635 @@
-<!doctype html>
-<html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Smart AI Doorbell</title>
-<script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
-<style>
-body{font-family:system-ui,Arial,sans-serif;background:#101827;color:#f3f6ff;margin:0;padding:25px}
-main{max-width:1050px;margin:auto}h1{margin-bottom:5px}
-.muted{color:#a6b5ca}.layout{display:grid;grid-template-columns:2fr 1fr;gap:18px}
-section{background:#1b293e;padding:18px;border-radius:14px;margin-top:20px}
-.camera{width:100%;border-radius:10px;background:#0b1320}
-.stat{padding:10px;border-bottom:1px solid #33445e}
-.visitors{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}
-.card{background:#243650;border-radius:9px;overflow:hidden}
-.card img{width:100%;display:block}.card p{font-size:12px;padding:8px;margin:0}
-@media(max-width:750px){.layout{grid-template-columns:1fr}}
-</style></head><body><main>
-<h1>Smart AI Doorbell</h1><p class="muted">Raspberry Pi live camera and visitor history</p>
-<div class="layout"><section><h2>Live Camera</h2>
-<img class="camera" src="/video_feed" alt="Live camera feed"></section>
-<section><h2>System Status</h2><div id="status">Connecting...</div></section></div>
-<section><h2>Recent Visitors</h2><div class="visitors" id="visitors">Loading visitor history...</div></section>
-</main><script>
-const visitors=document.getElementById('visitors');
-function addVisitor(item,prepend=false){
-  if(visitors.textContent.includes('Loading visitor history')||visitors.textContent.includes('No visitors'))visitors.textContent='';
-  if([...visitors.children].some(el=>el.dataset.filename===item.filename))return;
-  const card=document.createElement('div');card.className='card';card.dataset.filename=item.filename;
-  const img=document.createElement('img');img.src='/photos/'+encodeURIComponent(item.filename);
-  img.alt='Visitor photo';
-  const p=document.createElement('p');p.textContent=item.timestamp;
-  card.append(img,p);
-  prepend?visitors.prepend(card):visitors.append(card);
-  while(visitors.children.length>10)visitors.lastElementChild.remove();
-}
-fetch('/visitor_history').then(r=>r.json()).then(items=>{
-  visitors.textContent='';
-  if(!items.length)visitors.textContent='No visitors yet.';
-  items.forEach(item=>addVisitor(item));
-}).catch(()=>visitors.textContent='Could not load visitor history.');
-if(typeof io==='function'){
-  const socket=io();
-  socket.on('new_visitor',item=>addVisitor(item,true));
-}
-async function refreshStatus(){
-  try{
-    const r=await fetch('/status');const s=await r.json();
-    const el=document.getElementById('status');el.replaceChildren();
-    for(const [key,value] of Object.entries(s)){
-      const d=document.createElement('div');d.className='stat';
-      d.textContent=key.replaceAll('_',' ').toUpperCase()+': '+(value??'—');
-      el.appendChild(d);
-    }
-  }catch(e){document.getElementById('status').textContent='Disconnected';}
-}
-refreshStatus();setInterval(refreshStatus,500);
-</script></body></html>
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Doorbell Dashboard</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .night-vision-filter {
+            filter: sepia(100%) hue-rotate(60deg) saturate(300%) contrast(120%) brightness(90%);
+        }
+        .infrared-overlay {
+            background: radial-gradient(circle, rgba(0,255,0,0.15) 0%, rgba(0,0,0,0.85) 100%);
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col transition-colors duration-300">
+
+    <!-- Top Navigation Bar -->
+    <header class="bg-slate-900/80 backdrop-blur-md border-b border-slate-800 sticky top-0 z-40 px-4 lg:px-8 py-3 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+            <div class="bg-emerald-500/10 text-emerald-400 p-2.5 rounded-xl border border-emerald-500/20 shadow-inner">
+                <i class="fa-solid fa-bell text-xl"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg tracking-tight flex items-center gap-2">
+                    NestGuard Pro 
+                    <span class="bg-emerald-500/20 text-emerald-400 text-xs px-2 py-0.5 rounded-full font-medium border border-emerald-500/30">Online</span>
+                </h1>
+                <p class="text-xs text-slate-400">Front Porch Camera • 1080p HDR</p>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-3">
+            <!-- System Status Indicator -->
+            <div class="hidden sm:flex items-center space-x-2 bg-slate-800/80 px-3 py-1.5 rounded-full border border-slate-700/60 text-xs font-medium text-slate-300">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>Signal: Strong (98%)</span>
+            </div>
+            <!-- Quick Lock State Badge -->
+            <div id="headerLockBadge" class="flex items-center space-x-1.5 bg-emerald-950/60 text-emerald-400 border border-emerald-800/50 px-3 py-1.5 rounded-full text-xs font-semibold">
+                <i class="fa-solid fa-lock"></i>
+                <span id="headerLockText">Door Locked</span>
+            </div>
+            <!-- Settings Modal Button -->
+            <button onclick="toggleModal('settingsModal')" class="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition border border-slate-700">
+                <i class="fa-solid fa-gear"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Dashboard Content -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Left & Center: Video Feed & Quick Controls (Span 2) -->
+        <div class="lg:col-span-2 space-y-6">
+            
+            <!-- Live Camera Feed Card -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl relative flex flex-col">
+                <!-- Video Header Overlay -->
+                <div class="absolute top-4 left-4 right-4 z-20 flex justify-between items-center pointer-events-none">
+                    <div class="flex items-center space-x-2 bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 text-xs text-white pointer-events-auto">
+                        <span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping"></span>
+                        <span class="font-bold tracking-wider uppercase text-[10px]">LIVE</span>
+                        <span class="text-slate-300 border-l border-slate-600 pl-2" id="liveClock">11:33 AM</span>
+                    </div>
+                    <div class="flex items-center space-x-2 pointer-events-auto">
+                        <!-- Night Vision Toggle Button -->
+                        <button id="nightVisionBtn" onclick="toggleNightVision()" class="bg-black/60 hover:bg-black/80 backdrop-blur-md text-slate-200 px-3 py-1.5 rounded-lg border border-white/10 text-xs font-medium transition flex items-center space-x-1.5 shadow">
+                            <i class="fa-solid fa-moon text-indigo-300"></i>
+                            <span id="nightVisionText">Night Vision: Off</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Video Screen Simulation Area -->
+                <div id="videoContainer" class="relative w-full aspect-video bg-slate-950 overflow-hidden flex items-center justify-center group">
+                    <!-- Simulated Camera Background / Animation -->
+                    <div id="videoStream" class="absolute inset-0 bg-cover bg-center transition-all duration-500" style="background-image: url('https://placehold.co/1280x720/1e293b/475569?text=Porch+Live+Feed');">
+                        <!-- Simulated moving elements or lighting -->
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30"></div>
+                    </div>
+
+                    <!-- Night Vision & Infrared Vignette Overlay -->
+                    <div id="nightVisionOverlay" class="absolute inset-0 pointer-events-none opacity-0 transition-opacity duration-300 infrared-overlay"></div>
+
+                    <!-- Watermark / HUD elements -->
+                    <div class="absolute bottom-4 left-4 z-20 text-[11px] font-mono text-slate-300 bg-black/40 px-2.5 py-1 rounded border border-white/10">
+                        CAM-01 • FRONT_PORCH_4K
+                    </div>
+
+                    <!-- Center Ring / Intercom call overlay simulated -->
+                    <div id="ringActiveAlert" class="absolute inset-0 bg-amber-500/10 border-4 border-amber-500/50 hidden flex items-center justify-center animate-pulse z-30">
+                        <div class="bg-slate-900/90 border border-amber-500/40 text-amber-300 px-6 py-3 rounded-2xl shadow-2xl flex items-center space-x-3">
+                            <i class="fa-solid fa-bell text-2xl animate-bounce"></i>
+                            <div>
+                                <h4 class="font-bold text-sm">Motion / Visitor Detected!</h4>
+                                <p class="text-xs text-slate-400">Someone is at your front door.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Video Action Bar -->
+                <div class="bg-slate-900/90 border-t border-slate-800 p-4 flex flex-wrap items-center justify-between gap-3">
+                    <div class="flex items-center space-x-2">
+                        <!-- Two-Way Talk Button -->
+                        <button onclick="openIntercom()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl text-xs font-semibold shadow-lg shadow-emerald-900/30 transition flex items-center space-x-2">
+                            <i class="fa-solid fa-microphone"></i>
+                            <span>Two-Way Talk</span>
+                        </button>
+                        <!-- Siren Trigger -->
+                        <button onclick="triggerSiren()" class="bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 border border-rose-500/30 px-3 py-2.5 rounded-xl text-xs font-semibold transition flex items-center space-x-2">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                            <span>Siren</span>
+                        </button>
+                    </div>
+
+                    <div class="flex items-center space-x-2">
+                        <button onclick="triggerSnapshotFlash()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-xl text-xs font-medium border border-slate-700 transition flex items-center space-x-1.5" title="Take Snapshot">
+                            <i class="fa-solid fa-camera text-slate-400"></i>
+                            <span class="hidden sm:inline">Snapshot</span>
+                        </button>
+                        <button onclick="toggleFullscreen()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-xl text-xs font-medium border border-slate-700 transition" title="Expand View">
+                            <i class="fa-solid fa-expand"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Control Grid Cards -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                
+                <!-- Door Lock Control Card -->
+                <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex items-center justify-between shadow-lg">
+                    <div class="flex items-center space-x-4">
+                        <div id="lockIconContainer" class="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20 transition-colors">
+                            <i id="lockIcon" class="fa-solid fa-lock text-xl"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-sm text-slate-200">Front Door Lock</h3>
+                            <p id="lockStatusDesc" class="text-xs text-emerald-400 font-medium">Securely Locked</p>
+                        </div>
+                    </div>
+                    <button id="lockToggleButton" onclick="toggleDoorLock()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow transition">
+                        Unlock
+                    </button>
+                </div>
+
+                <!-- Motion Detection Status & Toggle -->
+                <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex items-center justify-between shadow-lg">
+                    <div class="flex items-center space-x-4">
+                        <div class="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center border border-blue-500/20">
+                            <i class="fa-solid fa-person-walking text-xl"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-sm text-slate-200">Motion Alerts</h3>
+                            <p id="motionStatusDesc" class="text-xs text-blue-400 font-medium">Active & Detecting</p>
+                        </div>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="motionToggle" checked onchange="toggleMotionDetection()" class="sr-only peer">
+                        <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                    </label>
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- Right Column: Device Health & Activity Log (Span 1) -->
+        <div class="space-y-6">
+            
+            <!-- Device Health Card -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4">
+                <h3 class="font-semibold text-sm text-slate-200 flex items-center justify-between">
+                    <span>Device Status</span>
+                    <i class="fa-solid fa-microchip text-slate-400"></i>
+                </h3>
+
+                <!-- Battery Level -->
+                <div class="space-y-1.5">
+                    <div class="flex justify-between text-xs">
+                        <span class="text-slate-400 flex items-center gap-1.5"><i class="fa-solid fa-battery-three-quarters text-emerald-400"></i> Battery Level</span>
+                        <span class="font-semibold text-emerald-400">84% (Hardwired / Trickle)</span>
+                    </div>
+                    <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden border border-slate-700">
+                        <div class="bg-emerald-500 h-full rounded-full transition-all duration-500" style="width: 84%"></div>
+                    </div>
+                </div>
+
+                <!-- Wi-Fi Signal & Temp -->
+                <div class="grid grid-cols-2 gap-3 pt-2">
+                    <div class="bg-slate-800/60 p-3 rounded-xl border border-slate-700/60 flex items-center space-x-3">
+                        <div class="text-blue-400"><i class="fa-solid fa-wifi text-lg"></i></div>
+                        <div>
+                            <p class="text-[10px] text-slate-400 uppercase tracking-wider font-medium">Wi-Fi RSSI</p>
+                            <p class="text-xs font-bold text-slate-200">-52 dBm (Fast)</p>
+                        </div>
+                    </div>
+                    <div class="bg-slate-800/60 p-3 rounded-xl border border-slate-700/60 flex items-center space-x-3">
+                        <div class="text-amber-400"><i class="fa-solid fa-temperature-half text-lg"></i></div>
+                        <div>
+                            <p class="text-[10px] text-slate-400 uppercase tracking-wider font-medium">Temperature</p>
+                            <p class="text-xs font-bold text-slate-200">68°F (Porch)</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Visitor History Log Card -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4 flex flex-col h-[460px]">
+                <div class="flex items-center justify-between">
+                    <h3 class="font-semibold text-sm text-slate-200 flex items-center space-x-2">
+                        <i class="fa-solid fa-clock-rotate-left text-slate-400"></i>
+                        <span>Recent Activity Log</span>
+                    </h3>
+                    <button onclick="simulateNewEvent()" class="text-xs text-emerald-400 hover:text-emerald-300 font-medium transition flex items-center gap-1">
+                        <i class="fa-solid fa-plus"></i> Simulate Event
+                    </button>
+                </div>
+
+                <!-- Scrollable Log List -->
+                <div id="activityLogList" class="flex-1 overflow-y-auto space-y-3 pr-1">
+                    
+                    <!-- Item 1 -->
+                    <div class="bg-slate-800/50 hover:bg-slate-800 p-3 rounded-xl border border-slate-700/60 transition flex items-center space-x-3 cursor-pointer group" onclick="playSnapshotModal('Delivery Person', 'Today, 11:15 AM', 'https://placehold.co/400x300/334155/cbd5e1?text=Delivery+Snapshot')">
+                        <div class="relative w-12 h-12 rounded-lg bg-slate-700 overflow-hidden flex-shrink-0 border border-slate-600">
+                            <img src="https://placehold.co/100x100/334155/cbd5e1?text=Log" alt="Thumbnail" class="w-full h-full object-cover group-hover:scale-105 transition">
+                            <div class="absolute bottom-0 right-0 bg-blue-600 text-white text-[9px] px-1 rounded-tl">Motion</div>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-xs font-semibold text-slate-200 truncate">Package Delivery</p>
+                            <p class="text-[11px] text-slate-400">Amazon Courier • 11:15 AM</p>
+                        </div>
+                        <div class="text-slate-500 group-hover:text-slate-300 text-xs">
+                            <i class="fa-solid fa-chevron-right"></i>
+                        </div>
+                    </div>
+
+                    <!-- Item 2 -->
+                    <div class="bg-slate-800/50 hover:bg-slate-800 p-3 rounded-xl border border-slate-700/60 transition flex items-center space-x-3 cursor-pointer group" onclick="playSnapshotModal('Visitor Ring', 'Today, 09:42 AM', 'https://placehold.co/400x300/1e293b/cbd5e1?text=Visitor+At+Door')">
+                        <div class="relative w-12 h-12 rounded-lg bg-slate-700 overflow-hidden flex-shrink-0 border border-slate-600">
+                            <img src="https://placehold.co/100x100/1e293b/cbd5e1?text=Ring" alt="Thumbnail" class="w-full h-full object-cover group-hover:scale-105 transition">
+                            <div class="absolute bottom-0 right-0 bg-amber-600 text-white text-[9px] px-1 rounded-tl">Ring</div>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-xs font-semibold text-slate-200 truncate">Doorbell Pressed</p>
+                            <p class="text-[11px] text-slate-400">Neighbor Sarah • 09:42 AM</p>
+                        </div>
+                        <div class="text-slate-500 group-hover:text-slate-300 text-xs">
+                            <i class="fa-solid fa-chevron-right"></i>
+                        </div>
+                    </div>
+
+                    <!-- Item 3 -->
+                    <div class="bg-slate-800/50 hover:bg-slate-800 p-3 rounded-xl border border-slate-700/60 transition flex items-center space-x-3 cursor-pointer group" onclick="playSnapshotModal('Motion Detected', 'Yesterday, 06:10 PM', 'https://placehold.co/400x300/0f172a/cbd5e1?text=Evening+Motion')">
+                        <div class="relative w-12 h-12 rounded-lg bg-slate-700 overflow-hidden flex-shrink-0 border border-slate-600">
+                            <img src="https://placehold.co/100x100/0f172a/cbd5e1?text=Motion" alt="Thumbnail" class="w-full h-full object-cover group-hover:scale-105 transition">
+                            <div class="absolute bottom-0 right-0 bg-blue-600 text-white text-[9px] px-1 rounded-tl">Motion</div>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-xs font-semibold text-slate-200 truncate">Motion Detected</p>
+                            <p class="text-[11px] text-slate-400">Front Porch • Yesterday</p>
+                        </div>
+                        <div class="text-slate-500 group-hover:text-slate-300 text-xs">
+                            <i class="fa-solid fa-chevron-right"></i>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Two-Way Talk Modal / Simulation -->
+    <div id="intercomModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl relative space-y-6">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20">
+                        <i class="fa-solid fa-microphone-lines animate-pulse"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-slate-100">Two-Way Intercom Active</h3>
+                        <p class="text-xs text-emerald-400 font-medium">Speaking with Front Porch Visitor</p>
+                    </div>
+                </div>
+                <button onclick="closeIntercom()" class="text-slate-400 hover:text-slate-200 text-sm p-2"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+
+            <!-- Audio Waveform Animation Simulation -->
+            <div class="bg-slate-950 p-6 rounded-2xl border border-slate-800 flex flex-col items-center justify-center space-y-4">
+                <div class="flex items-center space-x-1 h-12">
+                    <span class="w-1 bg-emerald-500 rounded-full animate-bounce h-4"></span>
+                    <span class="w-1 bg-emerald-500 rounded-full animate-bounce h-8" style="animation-delay: 0.1s"></span>
+                    <span class="w-1 bg-emerald-500 rounded-full animate-bounce h-12" style="animation-delay: 0.2s"></span>
+                    <span class="w-1 bg-emerald-500 rounded-full animate-bounce h-6" style="animation-delay: 0.3s"></span>
+                    <span class="w-1 bg-emerald-500 rounded-full animate-bounce h-10" style="animation-delay: 0.4s"></span>
+                    <span class="w-1 bg-emerald-500 rounded-full animate-bounce h-5" style="animation-delay: 0.2s"></span>
+                </div>
+                <p id="intercomStatusText" class="text-xs text-slate-400 text-center font-mono">Microphone is live. Speak clearly into your device.</p>
+            </div>
+
+            <!-- Quick Preset Replies -->
+            <div class="space-y-2">
+                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Quick Responses</p>
+                <div class="grid grid-cols-1 gap-2">
+                    <button onclick="sendQuickReply('Please leave the package at the front door. Thanks!')" class="text-left text-xs bg-slate-800 hover:bg-slate-700 p-2.5 rounded-xl border border-slate-700/80 text-slate-300 transition">
+                        📦 "Please leave the package at the door."
+                    </button>
+                    <button onclick="sendQuickReply('We will be right there in a moment!')" class="text-left text-xs bg-slate-800 hover:bg-slate-700 p-2.5 rounded-xl border border-slate-700/80 text-slate-300 transition">
+                        🚪 "We will be right there in a moment!"
+                    </button>
+                    <button onclick="sendQuickReply('No thank you, not interested.')" class="text-left text-xs bg-slate-800 hover:bg-slate-700 p-2.5 rounded-xl border border-slate-700/80 text-slate-300 transition">
+                        🚫 "No thank you, not interested."
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex space-x-3 pt-2">
+                <button onclick="closeIntercom()" class="flex-1 bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 border border-rose-500/30 font-semibold py-2.5 rounded-xl text-xs transition">
+                    End Call
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Snapshot Viewer Modal -->
+    <div id="snapshotModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl relative space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-camera text-emerald-400"></i>
+                    <h3 id="snapshotTitle" class="font-bold text-slate-100 text-sm">Visitor Snapshot</h3>
+                </div>
+                <button onclick="closeSnapshotModal()" class="text-slate-400 hover:text-slate-200 p-2"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="bg-slate-950 rounded-2xl overflow-hidden border border-slate-800">
+                <img id="snapshotImg" src="" alt="Snapshot Detail" class="w-full aspect-video object-cover">
+            </div>
+            <div class="flex justify-between items-center text-xs text-slate-400">
+                <span id="snapshotTimeText">Today, 11:15 AM</span>
+                <button onclick="downloadSnapshotSim()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-xl font-medium border border-slate-700 transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-download"></i> Save Image
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl relative space-y-6">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+                <h3 class="font-bold text-slate-100 text-base flex items-center gap-2">
+                    <i class="fa-solid fa-sliders text-emerald-400"></i> Doorbell Settings
+                </h3>
+                <button onclick="toggleModal('settingsModal')" class="text-slate-400 hover:text-slate-200 p-2"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+
+            <!-- Settings Options -->
+            <div class="space-y-4">
+                <!-- Push Notifications -->
+                <div class="flex items-center justify-between bg-slate-800/40 p-3.5 rounded-xl border border-slate-800">
+                    <div>
+                        <h4 class="font-semibold text-xs text-slate-200">Push Notifications</h4>
+                        <p class="text-[11px] text-slate-400">Receive instant alerts on phone/browser</p>
+                    </div>
+                    <input type="checkbox" checked class="w-4 h-4 accent-emerald-500 rounded cursor-pointer">
+                </div>
+
+                <!-- Chime Sound Volume -->
+                <div class="bg-slate-800/40 p-3.5 rounded-xl border border-slate-800 space-y-2">
+                    <div class="flex justify-between text-xs font-semibold text-slate-200">
+                        <span>Indoor Chime Volume</span>
+                        <span class="text-emerald-400">80%</span>
+                    </div>
+                    <input type="range" min="0" max="100" value="80" class="w-full accent-emerald-500 cursor-pointer">
+                </div>
+
+                <!-- Video Quality -->
+                <div class="bg-slate-800/40 p-3.5 rounded-xl border border-slate-800 space-y-2">
+                    <div class="flex justify-between text-xs font-semibold text-slate-200">
+                        <span>Streaming Quality</span>
+                    </div>
+                    <select class="w-full bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-xl p-2.5 outline-none focus:border-emerald-500">
+                        <option>1080p HDR (Recommended)</option>
+                        <option>720p Standard (Battery Saver)</option>
+                        <option>4K Ultra (High Bandwidth)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="flex justify-end pt-2">
+                <button onclick="toggleModal('settingsModal')" class="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-xl text-xs font-semibold shadow transition">
+                    Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Banner -->
+    <div id="toastNotification" class="fixed bottom-6 right-6 z-50 transform translate-y-20 opacity-0 transition-all duration-300 bg-slate-900 border border-emerald-500/40 text-slate-100 px-4 py-3 rounded-2xl shadow-2xl flex items-center space-x-3">
+        <div class="text-emerald-400 text-lg">
+            <i id="toastIcon" class="fa-solid fa-circle-check"></i>
+        </div>
+        <div>
+            <h4 id="toastTitle" class="font-bold text-xs">Action Successful</h4>
+            <p id="toastMessage" class="text-[11px] text-slate-400">Doorbell state updated successfully.</p>
+        </div>
+    </div>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        // Live clock update
+        function updateClock() {
+            const now = new Date();
+            let hours = now.getHours();
+            const minutes = now.getMinutes().toString().padStart(2, '0');
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12;
+            hours = hours ? hours : 12;
+            document.getElementById('liveClock').innerText = `${hours}:${minutes} ${ampm}`;
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        let isNightVisionOn = false;
+        let isLocked = true;
+        let isMotionActive = true;
+
+        function toggleNightVision() {
+            isNightVisionOn = !isNightVisionOn;
+            const btnText = document.getElementById('nightVisionText');
+            const overlay = document.getElementById('nightVisionOverlay');
+            const videoStream = document.getElementById('videoStream');
+
+            if (isNightVisionOn) {
+                btnText.innerText = "Night Vision: On";
+                overlay.classList.remove('opacity-0');
+                videoStream.classList.add('night-vision-filter');
+                showToast("Night Vision Enabled", "Infrared sensor activated for low light.", "fa-moon");
+            } else {
+                btnText.innerText = "Night Vision: Off";
+                overlay.classList.add('opacity-0');
+                videoStream.classList.remove('night-vision-filter');
+                showToast("Night Vision Disabled", "Switched back to standard color camera.", "fa-sun");
+            }
+        }
+
+        function toggleDoorLock() {
+            isLocked = !isLocked;
+            const btn = document.getElementById('lockToggleButton');
+            const desc = document.getElementById('lockStatusDesc');
+            const container = document.getElementById('lockIconContainer');
+            const icon = document.getElementById('lockIcon');
+            const headerBadge = document.getElementById('headerLockBadge');
+            const headerText = document.getElementById('headerLockText');
+
+            if (isLocked) {
+                btn.innerText = "Unlock";
+                btn.className = "bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow transition";
+                desc.innerText = "Securely Locked";
+                desc.className = "text-xs text-emerald-400 font-medium";
+                container.className = "w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20 transition-colors";
+                icon.className = "fa-solid fa-lock text-xl";
+                headerBadge.className = "flex items-center space-x-1.5 bg-emerald-950/60 text-emerald-400 border border-emerald-800/50 px-3 py-1.5 rounded-full text-xs font-semibold";
+                headerText.innerText = "Door Locked";
+                showToast("Door Locked", "Front door deadbolt successfully engaged.", "fa-lock");
+            } else {
+                btn.innerText = "Lock Door";
+                btn.className = "bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow transition";
+                desc.innerText = "Unlocked - Warning";
+                desc.className = "text-xs text-amber-400 font-medium";
+                container.className = "w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center border border-amber-500/20 transition-colors";
+                icon.className = "fa-solid fa-lock-open text-xl";
+                headerBadge.className = "flex items-center space-x-1.5 bg-amber-950/60 text-amber-400 border border-amber-800/50 px-3 py-1.5 rounded-full text-xs font-semibold";
+                headerText.innerText = "Door Unlocked";
+                showToast("Door Unlocked", "Front door deadbolt has been released.", "fa-lock-open");
+            }
+        }
+
+        function toggleMotionDetection() {
+            const toggle = document.getElementById('motionToggle');
+            const desc = document.getElementById('motionStatusDesc');
+            isMotionActive = toggle.checked;
+
+            if (isMotionActive) {
+                desc.innerText = "Active & Detecting";
+                desc.className = "text-xs text-blue-400 font-medium";
+                showToast("Motion Alerts Enabled", "You will be notified of front porch activity.", "fa-person-walking");
+            } else {
+                desc.innerText = "Paused / Disabled";
+                desc.className = "text-xs text-slate-400 font-medium";
+                showToast("Motion Alerts Paused", "Notifications for movement have been paused.", "fa-bell-slash");
+            }
+        }
+
+        function openIntercom() {
+            document.getElementById('intercomModal').classList.remove('hidden');
+        }
+
+        function closeIntercom() {
+            document.getElementById('intercomModal').classList.add('hidden');
+        }
+
+        function sendQuickReply(msg) {
+            const status = document.getElementById('intercomStatusText');
+            status.innerText = `Transmitting message: "${msg}"`;
+            status.classList.add('text-emerald-400');
+            showToast("Intercom Broadcast", "Quick reply played through doorbell speaker.", "fa-volume-high");
+            setTimeout(() => {
+                closeIntercom();
+                status.innerText = "Microphone is live. Speak clearly into your device.";
+                status.classList.remove('text-emerald-400');
+            }, 2000);
+        }
+
+        function triggerSiren() {
+            const alertBox = document.getElementById('ringActiveAlert');
+            alertBox.classList.remove('hidden');
+            showToast("Security Siren Triggered!", "100dB alarm sounding at front porch.", "fa-triangle-exclamation");
+            setTimeout(() => {
+                alertBox.classList.add('hidden');
+            }, 4000);
+        }
+
+        function triggerSnapshotFlash() {
+            showToast("Snapshot Saved", "High-res frame captured to photo library.", "fa-camera");
+        }
+
+        function toggleFullscreen() {
+            const container = document.getElementById('videoContainer');
+            if (!document.fullscreenElement) {
+                container.requestFullscreen().catch(err => {
+                    showToast("Fullscreen Error", "Unable to enter fullscreen mode.", "fa-circle-exclamation");
+                });
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
+        function toggleModal(modalId) {
+            const modal = document.getElementById(modalId);
+            modal.classList.toggle('hidden');
+        }
+
+        function playSnapshotModal(title, time, imgSrc) {
+            document.getElementById('snapshotTitle').innerText = title;
+            document.getElementById('snapshotTimeText').innerText = time;
+            document.getElementById('snapshotImg').src = imgSrc;
+            document.getElementById('snapshotModal').classList.remove('hidden');
+        }
+
+        function closeSnapshotModal() {
+            document.getElementById('snapshotModal').classList.add('hidden');
+        }
+
+        function downloadSnapshotSim() {
+            showToast("Download Started", "Snapshot image saved to downloads folder.", "fa-download");
+            closeSnapshotModal();
+        }
+
+        function simulateNewEvent() {
+            const list = document.getElementById('activityLogList');
+            const nowTime = "Just now";
+            
+            const newItem = document.createElement('div');
+            newItem.className = "bg-slate-800/50 hover:bg-slate-800 p-3 rounded-xl border border-slate-700/60 transition flex items-center space-x-3 cursor-pointer group";
+            newItem.setAttribute('onclick', `playSnapshotModal('Visitor At Door', '${nowTime}', 'https://placehold.co/400x300/1e293b/cbd5e1?text=New+Visitor')`);
+            newItem.innerHTML = `
+                <div class="relative w-12 h-12 rounded-lg bg-slate-700 overflow-hidden flex-shrink-0 border border-slate-600">
+                    <img src="https://placehold.co/100x100/1e293b/cbd5e1?text=Ring" alt="Thumbnail" class="w-full h-full object-cover">
+                    <div class="absolute bottom-0 right-0 bg-emerald-600 text-white text-[9px] px-1 rounded-tl">Ring</div>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-xs font-semibold text-slate-200 truncate">Doorbell Ring Event</p>
+                    <p class="text-[11px] text-slate-400">Front Porch • ${nowTime}</p>
+                </div>
+                <div class="text-slate-500 group-hover:text-slate-300 text-xs">
+                    <i class="fa-solid fa-chevron-right"></i>
+                </div>
+            `;
+            list.prepend(newItem);
+
+            // Trigger ring banner
+            const alertBox = document.getElementById('ringActiveAlert');
+            alertBox.classList.remove('hidden');
+            showToast("Doorbell Rung!", "Visitor is waiting at the front door.", "fa-bell");
+            setTimeout(() => {
+                alertBox.classList.add('hidden');
+            }, 5000);
+        }
+
+        function showToast(title, message, iconClass) {
+            const toast = document.getElementById('toastNotification');
+            document.getElementById('toastTitle').innerText = title;
+            document.getElementById('toastMessage').innerText = message;
+            document.getElementById('toastIcon').className = `fa-solid ${iconClass}`;
+            
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3500);
+        }
+    </script>
+</body>
+</html>
+

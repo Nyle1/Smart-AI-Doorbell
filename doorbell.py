@@ -1,19 +1,36 @@
-import subprocess
-import time
 from gpiozero import Button
-from config import BUTTON_PIN, SOUND_PATH
+from signal import pause
+from datetime import datetime
+import subprocess
+import os
 
-def ring():
-    print("Ding-dong!")
-    if SOUND_PATH.exists():
-        subprocess.Popen(["pw-play", str(SOUND_PATH)],
-                         stdout=subprocess.DEVNULL,
-                         stderr=subprocess.DEVNULL)
+button = Button(17, pull_up=True, bounce_time=0.2)
 
-button = Button(BUTTON_PIN, pull_up=True, bounce_time=0.1)
-button.when_pressed = ring
-try:
-    while True:
-        time.sleep(1)
-except KeyboardInterrupt:
-    button.close()
+photo_dir = os.path.expanduser("~/smart-doorbell/photos")
+os.makedirs(photo_dir, exist_ok=True)
+
+def doorbell_pressed():
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    filename = f"{photo_dir}/visitor_{timestamp}.jpg"
+
+    print("DING DONG!")
+    print("Taking visitor photo...")
+
+    subprocess.run([
+        "rpicam-still",
+        "-o", filename,
+        "--width", "1296",
+        "--height", "972",
+        "--nopreview",
+        "-t", "1000"
+    ])
+
+    print(f"Photo saved: {filename}")
+
+button.when_pressed = doorbell_pressed
+
+print("Smart Doorbell ready!")
+print("Press the button to take a visitor photo.")
+
+pause()
+
