@@ -2,88 +2,271 @@
 
 **Nyle Farhan Ul Haq and Shivank Chhaya**
 
-A Raspberry Pi 3 Model B+ classroom prototype combining a physical
-doorbell button, visitor photos, local LBPH face recognition, a
-servo-operated **cardboard demo door**, Bluetooth chime and Flask dashboard.
+A Raspberry Pi 3 Model B+ smart doorbell prototype that combines facial recognition, automatic visitor photography, a physical doorbell button, a servo-operated cardboard demonstration door, Bluetooth audio, and a live web dashboard.
 
-> **Reconstructed source:** These files were recreated from our development
-> conversation while the original Raspberry Pi was unavailable. They have
-> **not been tested on the actual Pi** and may differ from the final working
-> files. Replace them with the originals when available.
+This project demonstrates how computer vision, artificial intelligence, and hardware components can work together to create an automated doorbell system.
+
+> **Source Status:** The code in this repository was reconstructed from our development process while the original Raspberry Pi was unavailable. Although the original prototype worked successfully, the reconstructed GitHub files have not yet been fully tested against the original working version.
+
+## Features
+
+- **Facial Recognition:** Uses OpenCV Haar Cascade face detection and LBPH facial recognition to identify registered residents.
+- **Automatic Door Opening:** When a registered resident is recognized for five consecutive frames, the servo opens the cardboard demonstration door.
+- **Visitor Photography:** Captures and stores timestamped photographs when the doorbell button is pressed.
+- **Physical Doorbell:** A push button connected to the Raspberry Pi triggers the doorbell system.
+- **Bluetooth Doorbell Chime:** Plays a custom two-tone doorbell sound through a connected Bluetooth audio device.
+- **Live Camera Feed:** Streams video from the Raspberry Pi camera to a web dashboard.
+- **Web Dashboard:** Displays the camera feed, recognition status, door status, and recent visitor photographs.
+- **Real-Time Updates:** Uses Flask-SocketIO to automatically display new visitor photographs without manually refreshing the dashboard.
 
 ## Hardware
 
-- Raspberry Pi 3 Model B+ and OV5647 camera
-- Push button: GPIO17 to GND (internal pull-up)
-- Servo signal: GPIO18; use a suitable separate 5V servo supply and common ground
-- Breadboard and jumper wires
-- Optional Bluetooth headphones/speaker for the chime
+The project uses the following components:
 
-**No keypad software is included:** the keypad appeared in the initial
-materials list but was not part of the verified working setup.
+- Raspberry Pi 3 Model B+
+- Raspberry Pi OV5647 Camera Module
+- Push button
+- Servo motor
+- Breadboard
+- Jumper wires
+- Cardboard demonstration door
+- Bluetooth headphones or speaker (optional)
 
-## Install on Raspberry Pi OS
+### GPIO Connections
+
+| Component | Raspberry Pi Connection |
+| --- | --- |
+| Push Button | GPIO17 and GND |
+| Servo Signal | GPIO18 |
+| Camera | Raspberry Pi CSI Camera Port |
+| Servo Power | Suitable separate 5V supply with common ground |
+
+The push button uses the Raspberry Pi's internal pull-up resistor.
+
+**Note:** A keypad was included in the original materials list but was not integrated into the final working prototype. Therefore, no keypad software is included in this repository.
+
+## Project Documentation
+
+Complete step-by-step documentation is available in the repository's documentation folder.
+
+**[View Project Documentation](docs/)**
+
+The documentation includes:
+
+- Project overview and materials
+- Raspberry Pi setup
+- Hardware connections and wiring illustration
+- SSH setup and terminal commands
+- Python program setup
+- Facial recognition training
+- Servo motor configuration
+- Bluetooth audio configuration
+- Flask web dashboard setup
+- Testing procedures and expected outputs
+- Troubleshooting
+
+The wiring illustration is intended to demonstrate the general hardware arrangement and should not be treated as a verified electrical schematic.
+
+## Installation
+
+### Step 1: Connect to the Raspberry Pi
+
+Connect to your Raspberry Pi through SSH from another computer.
+
+```bash
+ssh pi@raspberrypi.local
+```
+
+Enter the Raspberry Pi password when prompted.
+
+### Step 2: Update the Raspberry Pi
 
 ```bash
 sudo apt update
-sudo apt install -y python3-flask python3-flask-socketio \
+sudo apt upgrade -y
+```
+
+### Step 3: Install Required Packages
+
+```bash
+sudo apt install -y git python3-flask python3-flask-socketio \
     python3-opencv opencv-data python3-picamera2 \
     python3-gpiozero python3-numpy
 ```
 
-Check that `cv2.face.LBPHFaceRecognizer_create()` is available:
+These packages provide the libraries needed for:
+
+- Camera access
+- Facial recognition
+- GPIO control
+- Web dashboard functionality
+- Real-time visitor updates
+
+### Step 4: Download the GitHub Repository
+
+Clone the repository directly onto the Raspberry Pi.
+
+```bash
+cd ~
+git clone https://github.com/Nyle1/Smart-AI-Doorbell.git
+cd Smart-AI-Doorbell
+```
+
+This downloads the project files and opens the project directory.
+
+### Step 5: Verify OpenCV
+
+Check that the facial recognition module is available.
 
 ```bash
 python3 -c "import cv2; print(cv2.face.LBPHFaceRecognizer_create())"
 ```
 
-If the installed OpenCV build lacks `cv2.face`, install a compatible
-OpenCV contrib build for your Raspberry Pi OS environment.
+If the command produces an error indicating that `cv2.face` is unavailable, install a compatible OpenCV contrib build for your Raspberry Pi OS environment.
 
-## Training
+## Facial Recognition Training
 
-With consent from both residents, collect their photos **locally**:
+The Smart AI Doorbell uses OpenCV's Local Binary Patterns Histograms (LBPH) algorithm to recognize registered residents.
+
+### Step 1: Collect Training Images
+
+With permission from the residents, collect facial images using the Raspberry Pi camera.
 
 ```bash
 python3 collect_faces.py resident1 --count 100
 python3 collect_faces.py resident2 --count 100
+```
+
+Each resident has 100 training images.
+
+The photographs are stored locally in the `faces/` directory.
+
+### Step 2: Train the Recognition Model
+
+```bash
 python3 train_faces.py
+```
+
+The training program creates a facial recognition model saved as:
+
+```text
+face_model.yml
+```
+
+### Step 3: Test Facial Recognition
+
+```bash
 python3 recognize_test.py
 ```
 
-`faces/`, `photos/` and `face_model.yml` are excluded from Git.
+The system attempts to identify registered residents using the camera.
 
-## Run
+The prototype uses a recognition-distance threshold of 55, where lower LBPH distances indicate closer matches.
+
+Five consecutive recognized frames are required before the servo opens the demonstration door.
+
+**Privacy Note:** Training images, visitor photographs, and facial recognition models are stored locally and are excluded from this GitHub repository.
+
+## Running the Smart AI Doorbell
+
+### Step 1: Open the Project Directory
 
 ```bash
-cd ~/smart-doorbell
+cd ~/Smart-AI-Doorbell
+```
+
+If your existing project uses the original `smart-doorbell` folder name, open that directory instead.
+
+### Step 2: Start the System
+
+```bash
 python3 smart_system.py
 ```
 
-Visit `http://<raspberry-pi-local-ip>:5000` on your local network.
-`doorbell.wav` is played using `pw-play` on the Pi's default audio output.
+The integrated program manages:
 
-## Components
+- Camera streaming
+- Facial recognition
+- Doorbell button detection
+- Visitor photography
+- Servo motor operation
+- Bluetooth doorbell audio
+- Web dashboard updates
 
-| File | Purpose |
+### Step 3: Open the Web Dashboard
+
+On another device connected to the same local network, open:
+
+```text
+http://<raspberry-pi-local-ip>:5000
+```
+
+Replace `<raspberry-pi-local-ip>` with your Raspberry Pi's actual IP address.
+
+The dashboard displays the live camera feed, system status, and recent visitor photographs.
+
+### Step 4: Stop the Program
+
+Press:
+
+```text
+Ctrl + C
+```
+
+in the terminal running the program.
+
+## Bluetooth Doorbell Audio
+
+The project includes a custom two-tone doorbell sound stored in:
+
+```text
+doorbell.wav
+```
+
+The sound is played through the Raspberry Pi's selected audio output using PipeWire.
+
+To test the audio:
+
+```bash
+pw-play doorbell.wav
+```
+
+If a Bluetooth speaker or headphones are connected and configured as the default audio output, the chime should play through that device.
+
+## Project Files
+
+| File | Description |
 | --- | --- |
-| `smart_system.py` | Integrated camera, button, recognition, servo and dashboard |
-| `templates/index.html` | Live feed, status and visitor history |
-| `config.py` | Pins, thresholds and paths |
-| `collect_faces.py` | Collect local training images |
-| `train_faces.py` | Train LBPH model |
-| `recognize_test.py` | Print recognition results |
-| `face_test.py` | Check face detection |
-| `servo_test.py` | Test cardboard door servo |
-| `button.py` | Test push button |
-| `doorbell.py` | Button and Bluetooth chime |
-| `app.py`, `dashboard.py`, `recognize_servo_WORKING.py` | Convenience entry points to combined system |
+| `smart_system.py` | Main integrated Smart AI Doorbell program |
+| `templates/index.html` | Web dashboard interface |
+| `config.py` | GPIO pins, recognition thresholds, and file paths |
+| `camera_utils.py` | Camera initialization and access management |
+| `collect_faces.py` | Collects resident facial training images |
+| `train_faces.py` | Trains the LBPH facial recognition model |
+| `recognize_test.py` | Tests facial recognition |
+| `face_test.py` | Tests face detection |
+| `servo_test.py` | Tests the servo motor |
+| `button.py` | Tests the physical doorbell button |
+| `doorbell.py` | Tests the doorbell button and audio |
+| `doorbell.wav` | Custom two-tone doorbell sound |
+| `app.py` | Alternative entry point for the integrated system |
+| `dashboard.py` | Alternative dashboard entry point |
+| `recognize_servo_WORKING.py` | Alternative recognition and servo entry point |
+| `docs/` | Complete project documentation |
 
-## Privacy and limitations
+## Privacy and Limitations
 
-Do not commit identifiable visitor photos, face datasets, credentials
-or face model files. The Flask development server is for a trusted
-local network only; do not expose port 5000 publicly. LBPH recognition
-is **not secure enough to control a real exterior door lock**.
-The generated wiring illustration in the documentation is conceptual,
-not a verified electrical wiring schematic.
+This project is intended as an educational prototype demonstrating the integration of artificial intelligence, computer vision, and hardware.
+
+- Facial training images and visitor photographs should remain private.
+- Facial recognition models and personal information should not be uploaded to public repositories.
+- The Flask development server should only be used on a trusted local network.
+- Port 5000 should not be exposed directly to the public internet.
+- LBPH facial recognition is not sufficiently secure to control a real exterior door lock.
+- The servo motor controls a cardboard demonstration door rather than a real door.
+- The reconstructed GitHub code should be tested on the Raspberry Pi before being considered a verified reproduction of the original system.
+
+## Authors
+
+**Nyle Farhan Ul Haq**  
+**Shivank Chhaya**
